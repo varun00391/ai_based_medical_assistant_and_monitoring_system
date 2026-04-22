@@ -1,0 +1,18 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt>=3.1.7,<4.0  # passlib 1.7.4 requires bcrypt 3.x
+python-multipart==0.0.17
+pydantic-settings==2.6.1
+httpx==0.28.1
+reportlab==4.2.5
+aiofiles==24.1.0
+psycopg2-binary==2.9.10
+email-validator==2.2.0
+python-dateutil==2.9.0
+pypdf==5.1.0
+PyMuPDF==1.25.2
+Pillow==11.1.0
+pytesseract==0.3.13
