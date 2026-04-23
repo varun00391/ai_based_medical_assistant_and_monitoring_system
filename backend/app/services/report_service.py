@@ -20,19 +20,37 @@ async def create_medical_report(
 ) -> MedicalReport:
     analyzed = await analyze_medical_symptoms(combined_text)
     summary = analyzed.get("summary", "")
+    medicines = analyzed.get("medicines", [])
     tests = analyzed.get("suggested_tests", [])
+    suggestions = analyzed.get("suggestions", [])
     tests_str = json.dumps(tests) if isinstance(tests, list) else str(tests)
+
+    meds_block = "\n".join(f"- {m}" for m in medicines) if isinstance(medicines, list) and medicines else "- None noted"
+    tests_block = "\n".join(f"- {t}" for t in tests) if isinstance(tests, list) and tests else "- None noted"
+    suggestions_block = (
+        "\n".join(f"- {s}" for s in suggestions) if isinstance(suggestions, list) and suggestions else "- None noted"
+    )
+    summary_text = (
+        "## Symptoms summary\n"
+        f"{summary.strip() or '- No summary generated'}\n\n"
+        "## Medicines to discuss with clinician\n"
+        f"{meds_block}\n\n"
+        "## Suggested tests\n"
+        f"{tests_block}\n\n"
+        "## Suggestions\n"
+        f"{suggestions_block}"
+    )
 
     Path(settings.reports_dir).mkdir(parents=True, exist_ok=True)
     pdf_name = f"report_{patient_id}_{int(time.time() * 1000)}.pdf"
     pdf_full = Path(settings.reports_dir) / pdf_name
-    build_medical_pdf(title, summary, "\n".join(tests) if isinstance(tests, list) else tests_str, pdf_full)
+    build_medical_pdf(title, summary_text, tests_block, pdf_full)
 
     report = MedicalReport(
         patient_id=patient_id,
         chat_session_id=session_id,
         title=title,
-        summary_text=summary,
+        summary_text=summary_text,
         suggested_tests=tests_str,
         pdf_path=str(pdf_full),
     )

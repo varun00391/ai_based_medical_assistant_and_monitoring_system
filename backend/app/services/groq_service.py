@@ -347,13 +347,17 @@ async def analyze_lab_text(file_label: str, extracted_text: str) -> str:
 
 
 async def analyze_medical_symptoms(conversation_text: str) -> dict:
-    """Returns structured summary + suggested tests from conversation."""
+    """Returns structured voice-intake analysis including meds/tests/suggestions."""
     system = (
         "You are a clinical documentation assistant. You do NOT diagnose. "
-        "Produce: (1) a concise bullet summary of reported symptoms and concerns, "
-        "(2) a bullet list of suggested laboratory or imaging tests a clinician might consider "
-        "(general education only, not prescription). "
-        "Respond as JSON with keys: summary (string), suggested_tests (array of strings)."
+        "Produce: "
+        "(1) a concise bullet summary of reported symptoms and concerns, "
+        "(2) a bullet list of OTC/self-care medicine options that may be discussed with a clinician "
+        "(no prescription dosing, no guaranteed treatment claims), "
+        "(3) a bullet list of suggested laboratory or imaging tests a clinician might consider, "
+        "(4) practical follow-up suggestions for the patient before seeing a doctor. "
+        "Respond as JSON with keys: summary (string), medicines (array of strings), "
+        "suggested_tests (array of strings), suggestions (array of strings)."
     )
     user = f"Conversation / notes:\n{conversation_text}\n\nRespond with JSON only."
     raw = await chat_completion(
@@ -369,7 +373,9 @@ async def analyze_medical_symptoms(conversation_text: str) -> dict:
         obj = json.loads(raw)
         return {
             "summary": obj.get("summary", raw),
+            "medicines": obj.get("medicines", []),
             "suggested_tests": obj.get("suggested_tests", []),
+            "suggestions": obj.get("suggestions", []),
         }
     except json.JSONDecodeError:
-        return {"summary": raw, "suggested_tests": []}
+        return {"summary": raw, "medicines": [], "suggested_tests": [], "suggestions": []}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import MarkdownContent from '../components/MarkdownContent'
+import VoiceAssistantDeepgram from '../components/VoiceAssistantDeepgram'
 import { useAuth } from '../context/AuthContext'
 
 export default function PatientDashboard() {
@@ -29,7 +30,8 @@ export default function PatientDashboard() {
             {[
               ['dashboard', 'Overview'],
               ['chat', 'AI chat'],
-              ['voice', 'Voice'],
+              ['voice-assistant', 'Voice assistant'],
+              ['vitals', 'Vitals & devices'],
               ['reports', 'Reports & uploads'],
               ['appointments', 'Book visit'],
             ].map(([id, label]) => (
@@ -64,7 +66,9 @@ export default function PatientDashboard() {
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/65">
               {tab === 'dashboard' && 'Stay on top of appointments, vitals, and documents in one vivid snapshot.'}
               {tab === 'chat' && 'Explain how you feel — responses support you without replacing your clinician.'}
-              {tab === 'voice' && 'Hands-free intake with clear, concise spoken replies.'}
+              {tab === 'voice-assistant' &&
+                'Deepgram Voice Agent: talk through your concern, get self-care and test ideas before you see a doctor.'}
+              {tab === 'vitals' && 'Connect health apps and devices, then monitor the latest heart rate and oxygen trends.'}
               {tab === 'reports' && 'Upload lab or imaging text exports for structured markdown analysis and PDF export.'}
               {tab === 'appointments' && 'Filter by specialty, tap a doctor to see available slots.'}
             </p>
@@ -72,7 +76,8 @@ export default function PatientDashboard() {
 
           {tab === 'dashboard' && <DashboardPanel />}
           {tab === 'chat' && <ChatPanel showVoiceAgent />}
-          {tab === 'voice' && <VoiceOnlyPanel />}
+          {tab === 'voice-assistant' && <VoiceAssistantDeepgram />}
+          {tab === 'vitals' && <VitalsPanel />}
           {tab === 'reports' && <ReportsPanel />}
           {tab === 'appointments' && (
             <AppointmentsPanel
@@ -156,36 +161,42 @@ function DashboardPanel() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-white/15 bg-gradient-to-br from-violet-500/15 via-fuchsia-500/10 to-cyan-500/15 p-6 shadow-inner shadow-black/20">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard label="Heart rate" value={currentVital?.pulse_bpm ? `${Math.round(currentVital.pulse_bpm)} bpm` : '—'} accent="from-rose-400 to-orange-400" />
+        <MetricCard label="SpO₂" value={currentVital?.spo2_percent ? `${currentVital.spo2_percent}%` : '—'} accent="from-cyan-400 to-blue-500" />
+        <MetricCard label="Tracked vitals" value={`${latestVitals.length}`} accent="from-violet-400 to-fuchsia-500" />
+      </div>
+
+      <section className="rounded-2xl border border-white/15 bg-gradient-to-br from-violet-500/15 via-fuchsia-500/10 to-cyan-500/15 p-4 shadow-inner shadow-black/20">
+        <div className="mb-3.5 flex flex-wrap items-end justify-between gap-2.5">
           <div>
-            <h3 className="text-lg font-bold text-white">Your appointments</h3>
-            <p className="text-sm text-white/60">Doctor, specialty, timing, and your notes.</p>
+            <h3 className="text-base font-bold text-white">Your appointments</h3>
+            <p className="text-xs text-white/60">Doctor, specialty, timing, and notes.</p>
           </div>
-          <span className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold text-white ring-1 ring-white/25">
+          <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/25">
             {appointments.length} booked
           </span>
         </div>
         {appointments.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/25 bg-white/5 px-6 py-10 text-center">
+          <div className="rounded-xl border border-dashed border-white/25 bg-white/5 px-4 py-7 text-center">
             <p className="text-white/65">No appointments yet.</p>
-            <p className="mt-1 text-sm text-white/45">Book under “Book visit” when you&apos;re ready.</p>
+            <p className="mt-1 text-xs text-white/45">Book under “Book visit” when you&apos;re ready.</p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {appointments.map((a) => (
               <article
                 key={a.id}
-                className="rounded-2xl border border-white/15 bg-white/[0.08] p-5 shadow-lg transition hover:border-cyan-400/35 hover:shadow-cyan-900/20"
+                className="rounded-xl border border-white/15 bg-white/[0.08] p-3.5 shadow-lg transition hover:border-cyan-400/35 hover:shadow-cyan-900/20"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-white">{a.doctor?.full_name || 'Doctor'}</p>
-                    <p className="mt-1 text-sm text-violet-200">{a.doctor?.specialty}</p>
+                    <p className="text-sm font-semibold text-white">{a.doctor?.full_name || 'Doctor'}</p>
+                    <p className="mt-0.5 text-xs text-violet-200">{a.doctor?.specialty}</p>
                   </div>
                   {statusBadge(a.status)}
                 </div>
-                <div className="mt-4 rounded-xl bg-black/25 px-4 py-3 text-sm text-white/85">
+                <div className="mt-2.5 rounded-lg bg-black/25 px-3 py-2 text-xs text-white/85">
                   <div className="flex flex-wrap gap-x-6 gap-y-2">
                     <span>
                       <span className="text-[10px] uppercase tracking-wider text-white/45">Starts</span>
@@ -199,12 +210,12 @@ function DashboardPanel() {
                     </span>
                   </div>
                   {a.patient_notes ? (
-                    <p className="mt-3 border-t border-white/10 pt-3 text-xs italic text-white/65">
+                    <p className="mt-2 border-t border-white/10 pt-2 text-[11px] italic text-white/65">
                       Your note: {a.patient_notes}
                     </p>
                   ) : null}
                   {a.doctor?.consultation_fee != null && (
-                    <p className="mt-2 text-xs text-cyan-200/90">Estimated fee · {a.doctor.consultation_fee}</p>
+                    <p className="mt-1.5 text-[11px] text-cyan-200/90">Estimated fee · {a.doctor.consultation_fee}</p>
                   )}
                 </div>
               </article>
@@ -213,18 +224,12 @@ function DashboardPanel() {
         )}
       </section>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="Heart rate" value={currentVital?.pulse_bpm ? `${Math.round(currentVital.pulse_bpm)} bpm` : '—'} accent="from-rose-400 to-orange-400" />
-        <MetricCard label="SpO₂" value={currentVital?.spo2_percent ? `${currentVital.spo2_percent}%` : '—'} accent="from-cyan-400 to-blue-500" />
-        <MetricCard label="Tracked vitals" value={`${latestVitals.length}`} accent="from-violet-400 to-fuchsia-500" />
-      </div>
-
       <div className="grid gap-6 lg:grid-cols-2">
         <GlowCard title="Recent vitals">
           <ul className="space-y-2">
             {latestVitals.slice(0, 5).map((v) => (
-              <li key={v.id} className="rounded-xl bg-black/25 px-4 py-3 text-sm text-white/85">
-                <span className="text-xs text-white/45">{new Date(v.recorded_at).toLocaleString()}</span>
+              <li key={v.id} className="rounded-lg bg-black/25 px-3 py-2 text-xs text-white/85">
+                <span className="text-[11px] text-white/45">{new Date(v.recorded_at).toLocaleString()}</span>
                 <span className="mt-1 block">
                   Pulse <strong className="text-white">{v.pulse_bpm ?? '—'}</strong> · SpO₂{' '}
                   <strong className="text-white">{v.spo2_percent ?? '—'}%</strong>
@@ -232,18 +237,18 @@ function DashboardPanel() {
                 </span>
               </li>
             ))}
-            {!latestVitals.length && <li className="rounded-xl px-4 py-6 text-center text-sm text-white/45">No readings yet.</li>}
+            {!latestVitals.length && <li className="rounded-lg px-3 py-5 text-center text-xs text-white/45">No readings yet.</li>}
           </ul>
         </GlowCard>
         <GlowCard title="Generated intake reports">
           <ul className="space-y-2">
             {reports.slice(0, 5).map((r) => (
-              <li key={r.id} className="rounded-xl bg-black/25 px-4 py-3 text-sm text-white/85">
+              <li key={r.id} className="rounded-lg bg-black/25 px-3 py-2 text-xs text-white/85">
                 #{r.id} · {r.title}
               </li>
             ))}
             {!reports.length && (
-              <li className="rounded-xl px-4 py-6 text-center text-sm text-white/45">Use chat flows to generate structured summaries.</li>
+              <li className="rounded-lg px-3 py-5 text-center text-xs text-white/45">Use chat flows to generate structured summaries.</li>
             )}
           </ul>
         </GlowCard>
@@ -254,8 +259,8 @@ function DashboardPanel() {
 
 function GlowCard({ title, children }) {
   return (
-    <section className="rounded-3xl border border-white/15 bg-white/[0.06] p-6 shadow-inner">
-      <h3 className="mb-4 font-semibold text-white">{title}</h3>
+    <section className="rounded-2xl border border-white/15 bg-white/[0.06] p-4 shadow-inner">
+      <h3 className="mb-3 text-sm font-semibold text-white">{title}</h3>
       {children}
     </section>
   )
@@ -263,9 +268,9 @@ function GlowCard({ title, children }) {
 
 function MetricCard({ label, value, accent }) {
   return (
-    <article className="rounded-3xl border border-white/15 bg-white/[0.06] p-5 shadow-lg">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">{label}</p>
-      <p className={`mt-3 bg-gradient-to-r bg-clip-text text-3xl font-bold text-transparent ${accent}`}>{value}</p>
+    <article className="rounded-2xl border border-white/15 bg-white/[0.06] p-3.5 shadow-lg">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">{label}</p>
+      <p className={`mt-2 bg-gradient-to-r bg-clip-text text-2xl font-bold text-transparent ${accent}`}>{value}</p>
     </article>
   )
 }
@@ -316,13 +321,18 @@ function ChatPanel({ showVoiceAgent = false }) {
     }
   }
 
-  async function handleVoiceTurn(voiceTurn) {
-    const syntheticMessages = [
-      { id: `voice-u-${Date.now()}`, role: 'user', content: voiceTurn.transcript || '' },
-      { id: `voice-a-${Date.now() + 1}`, role: 'assistant', content: voiceTurn.reply_text || '' },
-    ].filter((m) => m.content)
-    setMessages((prev) => [...prev, ...syntheticMessages])
+  async function handleVoiceQuery(transcript) {
+    if (!transcript?.trim()) return ''
+    const { data } = await api.post('/chat/message', {
+      content: transcript,
+      session_id: sessionId,
+      voice_concise: true,
+    })
+    setMessages(data.messages || [])
+    setSessionId(data.session_id)
     await refreshSessions()
+    const lastAssistant = [...(data.messages || [])].reverse().find((m) => m.role === 'assistant')
+    return lastAssistant?.content || ''
   }
 
   return (
@@ -352,9 +362,10 @@ function ChatPanel({ showVoiceAgent = false }) {
             ))}
           </ul>
         </div>
-        {showVoiceAgent && <VoiceAgentCard onVoiceTurn={handleVoiceTurn} />}
       </div>
-      <div className="flex min-h-[560px] flex-col rounded-3xl border border-white/15 bg-black/20 shadow-inner">
+      <div className="space-y-4">
+        {showVoiceAgent && <VoiceAgentCard onVoiceQuery={handleVoiceQuery} />}
+        <div className="flex min-h-[560px] flex-col rounded-3xl border border-white/15 bg-black/20 shadow-inner">
         <div className="max-h-[520px] flex-1 space-y-4 overflow-y-auto p-5">
           {messages.map((m) => (
             <div key={m.id} className={m.role === 'user' ? 'text-right' : 'text-left'}>
@@ -388,96 +399,357 @@ function ChatPanel({ showVoiceAgent = false }) {
           </button>
         </div>
       </div>
+      </div>
     </div>
   )
 }
 
-function VoiceAgentCard({ onVoiceTurn }) {
-  const [status, setStatus] = useState('')
-  const [lastAudioB64, setLastAudioB64] = useState('')
-  const mediaRef = useRef(null)
-  const chunksRef = useRef([])
+function VoiceAgentCard({ onVoiceQuery }) {
+  const [status, setStatus] = useState('Idle')
+  const [assistantOn, setAssistantOn] = useState(false)
+  const [lastTranscript, setLastTranscript] = useState('')
+  const [lastReply, setLastReply] = useState('')
+  const [lastAudioUrl, setLastAudioUrl] = useState('')
+  const recognitionRef = useRef(null)
+  const activeRef = useRef(false)
+  const transcriptRef = useRef('')
+  const audioRef = useRef(null)
 
-  async function startRec() {
-    chunksRef.current = []
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    const rec = new MediaRecorder(stream)
-    rec.ondataavailable = (e) => {
-      if (e.data.size) chunksRef.current.push(e.data)
-    }
-    rec.onstop = async () => {
-      stream.getTracks().forEach((t) => t.stop())
-      const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' })
-      const buf = await blob.arrayBuffer()
-      const bytes = new Uint8Array(buf)
-      let binary = ''
-      for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
-      const b64 = btoa(binary)
-      setStatus('Sending…')
-      try {
-        const { data } = await api.post('/voice/turn', {
-          audio_base64: b64,
-          mime_type: blob.type || 'audio/webm',
-        })
-        setLastAudioB64(data.reply_audio_base64 || '')
-        if (onVoiceTurn) onVoiceTurn(data)
-        setStatus('Done.')
-        if (data.reply_audio_base64) {
-          const snd = new Audio(`data:audio/mpeg;base64,${data.reply_audio_base64}`)
-          await snd.play().catch(() => {})
-        } else if (window.speechSynthesis && data.reply_text) {
-          window.speechSynthesis.cancel()
-          window.speechSynthesis.speak(new SpeechSynthesisUtterance(data.reply_text))
-        }
-      } catch (e) {
-        setStatus(e.response?.data?.detail || e.message)
+  function splitForTts(text, maxLen = 320) {
+    const compact = (text || '').replace(/\s+/g, ' ').trim()
+    if (!compact) return []
+    const parts = compact.split(/(?<=[.!?])\s+/)
+    const out = []
+    let buf = ''
+    for (const p of parts) {
+      if (!buf) {
+        buf = p
+      } else if ((buf + ' ' + p).length <= maxLen) {
+        buf += ` ${p}`
+      } else {
+        out.push(buf)
+        buf = p
       }
     }
-    mediaRef.current = rec
-    rec.start()
-    setStatus('Recording… tap Stop')
+    if (buf) out.push(buf)
+    return out
   }
 
-  function stopRec() {
-    mediaRef.current?.stop()
+  function toSpeechFriendlyText(text) {
+    const raw = (text || '')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[*_#>-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!raw) return ''
+    const sentences = raw.split(/(?<=[.!?])\s+/).filter(Boolean)
+    return sentences.slice(0, 2).join(' ')
+  }
+
+  function getRecognitionCtor() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null
+  }
+
+  function stopAssistant() {
+    activeRef.current = false
+    setAssistantOn(false)
+    setStatus('Stopped')
+    try {
+      recognitionRef.current?.abort()
+    } catch (e) {
+      setStatus((prev) => prev || e?.message || 'Stopped')
+    }
+    try {
+      audioRef.current?.pause()
+    } catch (e) {
+      setStatus((prev) => prev || e?.message || 'Stopped')
+    }
+    if (window.speechSynthesis) window.speechSynthesis.cancel()
+  }
+
+  useEffect(() => {
+    return () => {
+      if (lastAudioUrl) URL.revokeObjectURL(lastAudioUrl)
+    }
+  }, [lastAudioUrl])
+
+  async function speakText(text) {
+    const spoken = toSpeechFriendlyText(text)
+    if (!spoken) return
+    const chunks = splitForTts(spoken)
+    if (!chunks.length) return
+
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause()
+      } catch (e) {
+        setStatus((prev) => prev || e?.message || 'Audio pause failed')
+      }
+    }
+
+    for (let i = 0; i < chunks.length; i += 1) {
+      const chunk = chunks[i]
+      let played = false
+      const attempts = [chunk, chunk.slice(0, Math.min(chunk.length, 220))]
+      for (const attempt of attempts) {
+        if (!attempt.trim()) continue
+        try {
+          const res = await api.post('/voice/tts', { text: attempt }, { responseType: 'arraybuffer' })
+          const audioBlob = new Blob([res.data], { type: 'audio/mpeg' })
+          const audioUrl = URL.createObjectURL(audioBlob)
+          if (lastAudioUrl) URL.revokeObjectURL(lastAudioUrl)
+          setLastAudioUrl(audioUrl)
+          const player = new Audio(audioUrl)
+          player.volume = 1
+          player.muted = false
+          audioRef.current = player
+          await new Promise((resolve) => {
+            player.onended = () => {
+              resolve()
+            }
+            player.onerror = () => {
+              resolve()
+            }
+            player.play().catch(() => {
+              resolve()
+            })
+          })
+          if (player.paused) throw new Error('Autoplay blocked. Tap Test voice once.')
+          played = true
+          break
+        } catch (e) {
+          setStatus(e?.message || 'TTS playback issue, retrying…')
+          // Retry with shorter text.
+        }
+      }
+      if (!played) {
+        // Last-resort fallback so user always hears a reply.
+        if (window.speechSynthesis) {
+          setStatus('Deepgram unavailable, using fallback device voice.')
+          await new Promise((resolve) => {
+            window.speechSynthesis.cancel()
+            const utter = new SpeechSynthesisUtterance(chunk)
+            utter.rate = 1.02
+            utter.pitch = 1
+            utter.volume = 1
+            utter.onend = () => resolve()
+            utter.onerror = () => resolve()
+            window.speechSynthesis.speak(utter)
+          })
+          played = true
+        }
+        if (!played) {
+          setStatus('Audio playback failed. Please check browser sound/mic permissions.')
+          return
+        }
+      }
+      if (!activeRef.current) return
+      if (i < chunks.length - 1) await new Promise((r) => setTimeout(r, 80))
+    }
+  }
+
+  function listenOnce() {
+    const SpeechCtor = getRecognitionCtor()
+    if (!SpeechCtor) {
+      setStatus('Speech recognition unsupported in this browser.')
+      stopAssistant()
+      return
+    }
+    const rec = new SpeechCtor()
+    recognitionRef.current = rec
+    transcriptRef.current = ''
+    rec.lang = 'en-US'
+    rec.continuous = false
+    rec.interimResults = true
+
+    rec.onstart = () => {
+      if (activeRef.current) setStatus('Listening…')
+    }
+    rec.onresult = (event) => {
+      let partial = ''
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const res = event.results[i]
+        const text = res[0]?.transcript || ''
+        if (res.isFinal) transcriptRef.current += `${text} `
+        else partial += text
+      }
+      const preview = (transcriptRef.current + partial).trim()
+      if (preview) {
+        setLastTranscript(preview)
+        setStatus('Heard: processing...')
+      }
+    }
+    rec.onerror = () => {
+      if (activeRef.current) setStatus('Mic issue. Retrying...')
+    }
+    rec.onend = async () => {
+      if (!activeRef.current) return
+      const transcript = transcriptRef.current.trim()
+      if (!transcript) {
+        setStatus('Did not catch that. Listening again...')
+        setTimeout(() => {
+          if (activeRef.current) listenOnce()
+        }, 250)
+        return
+      }
+      try {
+        setStatus('Thinking…')
+        const reply = (await onVoiceQuery?.(transcript)) || ''
+        setLastReply(reply)
+        setStatus('Speaking…')
+        await speakText(reply)
+      } catch (e) {
+        setStatus(e.response?.data?.detail || e.message || 'Voice turn failed.')
+      }
+      if (activeRef.current) {
+        setStatus('Listening…')
+        setTimeout(() => {
+          if (activeRef.current) listenOnce()
+        }, 180)
+      }
+    }
+    rec.start()
+  }
+
+  function startAssistant() {
+    activeRef.current = true
+    setAssistantOn(true)
+    setStatus('Starting…')
+    listenOnce()
+  }
+
+  function testVoice() {
+    speakText('Voice check. If you hear this, assistant audio is working.')
   }
 
   return (
     <div className="rounded-3xl border border-white/15 bg-gradient-to-br from-cyan-500/15 to-violet-600/20 p-5">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-200">Voice companion</p>
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-200">Realtime voice assistant</p>
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={startRec} className="rounded-xl bg-cyan-500/35 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/25">
-          Record
-        </button>
-        <button type="button" onClick={stopRec} className="rounded-xl bg-white/15 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/25">
-          Stop & send
-        </button>
-      </div>
-      {lastAudioB64 && (
+        {!assistantOn ? (
+          <button
+            type="button"
+            onClick={startAssistant}
+            className="rounded-xl bg-cyan-500/35 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/25"
+          >
+            Start assistant
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={stopAssistant}
+            className="rounded-xl bg-white/15 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/25"
+          >
+            Stop assistant
+          </button>
+        )}
         <button
           type="button"
-          onClick={() =>
-            new Audio(`data:audio/mpeg;base64,${lastAudioB64}`).play().catch(() => setStatus('Playback blocked.'))
-          }
-          className="mt-3 rounded-xl border border-white/25 px-4 py-2 text-xs text-white hover:bg-white/10"
+          onClick={testVoice}
+          className="rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white"
         >
-          Replay reply
+          Test voice
         </button>
-      )}
+      </div>
+      {lastTranscript ? <p className="mt-3 text-xs text-white/70">You: {lastTranscript}</p> : null}
+      {lastReply ? <p className="mt-1 line-clamp-3 text-xs text-cyan-100/90">Assistant: {lastReply}</p> : null}
+      {lastAudioUrl ? (
+        <audio
+          controls
+          src={lastAudioUrl}
+          className="mt-3 w-full"
+          onPlay={() => setStatus('Playing reply…')}
+          onError={() => setStatus('Could not play audio in browser.')}
+        />
+      ) : null}
       <p className="mt-3 text-xs text-amber-100/90">{status}</p>
     </div>
   )
 }
 
-function VoiceOnlyPanel() {
+function VitalsPanel() {
+  const [latestVitals, setLatestVitals] = useState([])
+  const [source, setSource] = useState('manual')
+
+  const providerOptions = [
+    { id: 'google_fit', label: 'Google Fit', description: 'Sync heart rate and oxygen from connected Android wearables.' },
+    { id: 'apple_health', label: 'Apple Health', description: 'Pull Apple Watch metrics via HealthKit integration.' },
+    { id: 'fitbit', label: 'Fitbit', description: 'Import Fitbit resting heart rate and SpO₂ trends.' },
+    { id: 'samsung_health', label: 'Samsung Health', description: 'Connect Galaxy health records and measurements.' },
+    { id: 'garmin', label: 'Garmin Connect', description: 'Bring advanced pulse and training vital summaries.' },
+    { id: 'manual', label: 'Manual entry', description: 'Record from any pulse oximeter when app sync is unavailable.' },
+  ]
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadVitals() {
+      const { data } = await api.get('/vitals/latest')
+      if (!cancelled) setLatestVitals(data || [])
+    }
+    loadVitals().catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
-      <VoiceAgentCard />
-      <div className="rounded-3xl border border-white/15 bg-white/[0.06] p-8 text-white/75">
-        <p className="leading-relaxed">
-          Pair voice with the AI chat anytime for fuller context. Responses stay supportive and educational — always follow up with your clinician for care decisions.
-        </p>
+    <div className="space-y-8">
+      <section className="rounded-3xl border border-white/15 bg-gradient-to-br from-cyan-500/15 via-violet-600/12 to-fuchsia-500/20 p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-white">Connect a vitals source</h3>
+            <p className="mt-1 text-sm text-white/65">Choose your device ecosystem to sync pulse and oxygen metrics.</p>
+          </div>
+          <span className="rounded-full border border-cyan-300/40 bg-cyan-400/15 px-4 py-1.5 text-xs font-semibold text-cyan-100">
+            Beta integrations
+          </span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {providerOptions.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setSource(p.id)}
+              className={`rounded-2xl border p-4 text-left transition ${
+                source === p.id
+                  ? 'border-cyan-300/50 bg-cyan-400/15 ring-1 ring-cyan-300/35'
+                  : 'border-white/15 bg-white/[0.06] hover:border-white/30 hover:bg-white/[0.1]'
+              }`}
+            >
+              <p className="font-semibold text-white">{p.label}</p>
+              <p className="mt-1 text-xs leading-relaxed text-white/60">{p.description}</p>
+            </button>
+          ))}
+        </div>
+        <div className="mt-5 rounded-2xl border border-white/15 bg-black/25 px-4 py-3 text-sm text-white/75">
+          Selected source: <span className="font-semibold text-cyan-200">{providerOptions.find((p) => p.id === source)?.label}</span>
+          <span className="text-white/50"> — device OAuth pairing hook can be connected here.</span>
+        </div>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard label="Heart rate" value={latestVitals[0]?.pulse_bpm ? `${Math.round(latestVitals[0].pulse_bpm)} bpm` : '—'} accent="from-rose-400 to-orange-400" />
+        <MetricCard label="SpO₂" value={latestVitals[0]?.spo2_percent ? `${latestVitals[0].spo2_percent}%` : '—'} accent="from-cyan-400 to-blue-500" />
+        <MetricCard label="Tracked vitals" value={`${latestVitals.length}`} accent="from-violet-400 to-fuchsia-500" />
       </div>
+
+      <GlowCard title="Recent synchronized vitals">
+        <ul className="space-y-2">
+          {latestVitals.slice(0, 8).map((v) => (
+            <li key={v.id} className="rounded-xl bg-black/25 px-4 py-3 text-sm text-white/85">
+              <span className="text-xs text-white/45">{new Date(v.recorded_at).toLocaleString()}</span>
+              <span className="mt-1 block">
+                Pulse <strong className="text-white">{v.pulse_bpm ?? '—'}</strong> · SpO₂{' '}
+                <strong className="text-white">{v.spo2_percent ?? '—'}%</strong>
+                {v.source ? <span className="text-white/45"> ({v.source})</span> : null}
+              </span>
+            </li>
+          ))}
+          {!latestVitals.length && <li className="rounded-xl px-4 py-6 text-center text-sm text-white/45">No vitals available yet. Connect a provider above.</li>}
+        </ul>
+      </GlowCard>
     </div>
   )
 }
@@ -674,13 +946,13 @@ function AppointmentsPanel({ tab, onPickDoctor }) {
               <button
                 type="button"
                 onClick={() => onPickDoctor?.(d)}
-                className="w-full rounded-2xl border border-white/15 bg-white/[0.06] p-5 text-left transition hover:border-violet-400/50 hover:bg-white/[0.1]"
+                className="w-full rounded-xl border border-white/15 bg-white/[0.06] p-3.5 text-left transition hover:border-violet-400/50 hover:bg-white/[0.1]"
               >
-                <p className="font-semibold text-white">{d.full_name}</p>
-                <p className="text-sm text-violet-200">{d.specialty}</p>
-                <p className="mt-2 line-clamp-2 text-xs text-white/55">{d.bio || '—'}</p>
-                <p className="mt-2 text-xs font-medium text-cyan-200">Fee · {d.consultation_fee ?? 'N/A'}</p>
-                <span className="mt-3 inline-block text-xs font-semibold text-fuchsia-200">Open slots →</span>
+                <p className="text-sm font-semibold text-white">{d.full_name}</p>
+                <p className="text-xs text-violet-200">{d.specialty}</p>
+                <p className="mt-1.5 line-clamp-2 text-[11px] text-white/55">{d.bio || '—'}</p>
+                <p className="mt-1.5 text-[11px] font-medium text-cyan-200">Fee · {d.consultation_fee ?? 'N/A'}</p>
+                <span className="mt-2 inline-block text-[11px] font-semibold text-fuchsia-200">Open slots →</span>
               </button>
             </li>
           ))}
@@ -695,19 +967,67 @@ function AppointmentsPanel({ tab, onPickDoctor }) {
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/55">Your bookings</h2>
         <ul className="space-y-3">
           {mine.map((a) => (
-            <li key={a.id} className="rounded-2xl border border-white/15 bg-white/[0.06] p-4">
-              <p className="font-semibold text-white">{a.doctor?.full_name}</p>
-              <p className="text-xs text-violet-200">{a.doctor?.specialty}</p>
-              <p className="mt-2 text-sm text-white/75">
+            <li key={a.id} className="rounded-xl border border-white/15 bg-white/[0.06] p-3">
+              <p className="text-sm font-semibold text-white">{a.doctor?.full_name}</p>
+              <p className="text-[11px] text-violet-200">{a.doctor?.specialty}</p>
+              <p className="mt-1.5 text-xs text-white/75">
                 {a.slot?.start_time ? new Date(a.slot.start_time).toLocaleString() : '—'} →{' '}
                 {a.slot?.end_time ? new Date(a.slot.end_time).toLocaleTimeString() : '—'}
               </p>
-              <p className="mt-1 text-xs capitalize text-white/55">{a.status}</p>
+              <p className="mt-1 text-[11px] capitalize text-white/55">{a.status}</p>
+              <AppointmentDoctorTabs appointment={a} />
             </li>
           ))}
           {!mine.length && <li className="text-sm text-white/45">Nothing scheduled.</li>}
         </ul>
       </div>
+    </div>
+  )
+}
+
+function AppointmentDoctorTabs({ appointment }) {
+  const [active, setActive] = useState('doctor')
+
+  const tabs = [
+    ['doctor', 'Doctor'],
+    ['schedule', 'Schedule'],
+    ['notes', 'Notes'],
+  ]
+
+  return (
+    <div className="mt-2.5 rounded-xl border border-white/10 bg-black/25 p-2.5">
+      <div className="mb-2 flex flex-wrap gap-1">
+        {tabs.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActive(id)}
+            className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition ${
+              active === id ? 'bg-violet-400/35 text-white ring-1 ring-white/20' : 'bg-white/8 text-white/65 hover:bg-white/15 hover:text-white'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {active === 'doctor' && (
+        <div className="text-[11px] text-white/75">
+          <p>Specialty: <span className="text-violet-200">{appointment.doctor?.specialty || '—'}</span></p>
+          <p className="mt-1">Fee: <span className="text-cyan-200">{appointment.doctor?.consultation_fee ?? 'N/A'}</span></p>
+        </div>
+      )}
+      {active === 'schedule' && (
+        <div className="text-[11px] text-white/75">
+          <p>Start: {appointment.slot?.start_time ? new Date(appointment.slot.start_time).toLocaleString() : '—'}</p>
+          <p className="mt-1">End: {appointment.slot?.end_time ? new Date(appointment.slot.end_time).toLocaleString() : '—'}</p>
+          <p className="mt-1 capitalize">Status: {appointment.status || 'scheduled'}</p>
+        </div>
+      )}
+      {active === 'notes' && (
+        <p className="text-[11px] text-white/75">
+          {appointment.patient_notes ? `Your note: ${appointment.patient_notes}` : 'No patient note added for this booking.'}
+        </p>
+      )}
     </div>
   )
 }

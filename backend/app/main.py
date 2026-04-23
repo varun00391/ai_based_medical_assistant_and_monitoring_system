@@ -14,7 +14,7 @@ from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.migrations_sqlite import migrate_lab_results_pdf_column
 from app.models import AppointmentSlot, DoctorProfile, User, UserRole
-from app.routers import admin, appointments, auth, chat, doctor_portal, labs, reports, vitals, voice
+from app.routers import admin, appointments, auth, chat, doctor_portal, labs, reports, vitals, voice, voice_agent
 from app.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,7 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(labs.router, prefix="/api")
 app.include_router(vitals.router, prefix="/api")
 app.include_router(voice.router, prefix="/api")
+app.include_router(voice_agent.router, prefix="/api")
 app.include_router(appointments.router, prefix="/api")
 app.include_router(doctor_portal.router, prefix="/api")
 

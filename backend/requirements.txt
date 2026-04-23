@@ -16,3 +16,5 @@ pypdf==5.1.0
 PyMuPDF==1.25.2
 Pillow==11.1.0
 pytesseract==0.3.13
+deepgram-sdk>=3.0,<5
+websockets>=12.0

@@ -120,6 +120,10 @@ class ChatMessageIn(BaseModel):
         default="auto",
         description="auto: LLM router selects specialist; otherwise pin to one agent.",
     )
+    voice_concise: bool = Field(
+        default=False,
+        description="When true, generate shorter speech-friendly replies for voice loops.",
+    )
 
 
 class ChatMessageOut(BaseModel):

@@ -77,7 +77,11 @@ async def send_message(
         .all()
     )
     messages = [{"role": m.role, "content": m.content} for m in history]
-    reply_text, agent_trace = await run_chat_with_agents(messages, agent_mode=payload.agent_mode)
+    reply_text, agent_trace = await run_chat_with_agents(
+        messages,
+        agent_mode=payload.agent_mode,
+        voice_concise=payload.voice_concise,
+    )
 
     assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=reply_text)
     db.add(assistant_msg)
@@ -87,14 +91,15 @@ async def send_message(
     msgs = (
         db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at).all()
     )
-    combined = "\n".join([f"{m.role}: {m.content}" for m in msgs])
-    await create_medical_report(
-        db=db,
-        patient_id=user.id,
-        combined_text=combined,
-        session_id=session_id,
-        title="Auto-generated chat analysis report",
-    )
+    if not payload.voice_concise:
+        combined = "\n".join([f"{m.role}: {m.content}" for m in msgs])
+        await create_medical_report(
+            db=db,
+            patient_id=user.id,
+            combined_text=combined,
+            session_id=session_id,
+            title="Auto-generated chat analysis report",
+        )
     return ChatReply(session_id=session_id, messages=msgs, agent_trace=agent_trace)
 
 

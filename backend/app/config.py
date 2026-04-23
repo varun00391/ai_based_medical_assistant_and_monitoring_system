@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     deepgram_model: str = "nova-3"
     deepgram_smart_format: bool = True
     deepgram_tts_model: str = "aura-2-odysseus-en"
+    # Deepgram Voice Agent API — think step: "open_ai" (default) or "groq" (uses groq_model + GROQ API via Deepgram)
+    deepgram_voice_agent_think: str = "open_ai"
+    deepgram_voice_agent_openai_model: str = "gpt-4o-mini"
 
     uploads_dir: str = "./data/uploads"
     reports_dir: str = "./data/reports"
