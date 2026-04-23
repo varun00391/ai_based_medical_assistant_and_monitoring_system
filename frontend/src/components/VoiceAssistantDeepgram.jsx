@@ -48,6 +48,9 @@ export default function VoiceAssistantDeepgram() {
   const [status, setStatus] = useState('disconnected')
   const [transcript, setTranscript] = useState([])
   const [err, setErr] = useState(null)
+  const [micEnabled, setMicEnabled] = useState(true)
+  const [textInput, setTextInput] = useState('')
+  const [sessionMode, setSessionMode] = useState('voice')
   const [reportStatus, setReportStatus] = useState('')
   const [isReportBusy, setIsReportBusy] = useState(false)
   const wsRef = useRef(null)
@@ -57,11 +60,19 @@ export default function VoiceAssistantDeepgram() {
   const playbackQueueRef = useRef([])
   const playbackAudioRef = useRef(null)
   const playbackBusyRef = useRef(false)
+  const pendingAssistantRef = useRef('')
 
   const appendLine = useCallback((role, text) => {
     if (!text?.trim()) return
     setTranscript((prev) => [...prev, { id: `t-${Date.now()}-${Math.random()}`, role, text: text.trim() }])
   }, [])
+
+  const flushPendingAssistant = useCallback(() => {
+    const text = pendingAssistantRef.current.trim()
+    if (!text) return
+    appendLine('assistant', text)
+    pendingAssistantRef.current = ''
+  }, [appendLine])
 
   const stopAudioCapture = useCallback(() => {
     const a = audioRef.current
@@ -98,9 +109,10 @@ export default function VoiceAssistantDeepgram() {
     }
     playbackQueueRef.current = []
     playbackBusyRef.current = false
+    flushPendingAssistant()
     pcmBufferRef.current = []
     setStatus('disconnected')
-  }, [stopAudioCapture])
+  }, [flushPendingAssistant, stopAudioCapture])
 
   const generateVoiceReportAndDownload = useCallback(async () => {
     const lines = transcript
@@ -185,6 +197,9 @@ export default function VoiceAssistantDeepgram() {
     setErr(null)
     setReportStatus('')
     setTranscript([])
+    setSessionMode('voice')
+    setMicEnabled(true)
+    pendingAssistantRef.current = ''
     const url = buildVoiceAgentWsUrl()
     if (!url) {
       setErr('Sign in required.')
@@ -230,8 +245,8 @@ export default function VoiceAssistantDeepgram() {
         mute.connect(ctx.destination)
         audioRef.current = { ctx, proc, stream, sent: 0 }
       } catch (e) {
-        setErr(e.message || 'Microphone denied')
-        stop()
+        setMicEnabled(false)
+        setErr((e && e.message) || 'Microphone unavailable. You can still chat by typing below.')
       }
     }
 
@@ -245,7 +260,11 @@ export default function VoiceAssistantDeepgram() {
           }
           if (data.type === 'ConversationText' && data.content) {
             const role = data.role === 'user' ? 'user' : 'assistant'
-            appendLine(role, data.content)
+            if (role === 'assistant') {
+              pendingAssistantRef.current = `${pendingAssistantRef.current} ${data.content}`.trim()
+            } else {
+              appendLine(role, data.content)
+            }
             return
           }
           if (data.type === 'AgentStartedSpeaking') {
@@ -263,6 +282,7 @@ export default function VoiceAssistantDeepgram() {
             return
           }
           if (data.type === 'AgentAudioDone') {
+            flushPendingAssistant()
             flushAudioBuffer()
             return
           }
@@ -297,7 +317,20 @@ export default function VoiceAssistantDeepgram() {
         setErr((prev) => prev || 'Unable to reach voice assistant service. Check backend/proxy URL.')
       }
     }
-  }, [appendLine, flushAudioBuffer, stop, stopAudioCapture])
+  }, [appendLine, flushAudioBuffer, flushPendingAssistant, stop, stopAudioCapture])
+
+  const sendTypedMessage = useCallback(() => {
+    const text = textInput.trim()
+    if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(
+      JSON.stringify({
+        type: 'InjectUserMessage',
+        content: text,
+      })
+    )
+    appendLine('user', text)
+    setTextInput('')
+  }, [appendLine, textInput])
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -336,7 +369,12 @@ export default function VoiceAssistantDeepgram() {
         )}
         <span className="self-center text-xs text-white/55">
         {status === 'connecting' && 'Connecting…'}
-        {status === 'live' && 'Microphone on — speak naturally.'}
+        {status === 'live' &&
+          (sessionMode === 'text'
+            ? 'Text-only mode on — type your concern below.'
+            : micEnabled
+              ? 'Microphone on — speak naturally.'
+              : 'Text mode on — microphone unavailable.')}
         </span>
       </div>
       {status === 'disconnected' && transcript.length > 0 && (
@@ -352,16 +390,52 @@ export default function VoiceAssistantDeepgram() {
           {reportStatus ? <p className="text-xs text-cyan-200/90">{reportStatus}</p> : null}
         </div>
       )}
-      <div className="min-h-[220px] space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm">
+      <div className="max-h-[340px] min-h-[170px] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-black/20 p-3 text-sm">
+        {status === 'live' && (sessionMode === 'text' || !micEnabled) && (
+          <div className="mb-2 flex gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-2">
+            <input
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendTypedMessage()}
+              placeholder="Type your concern and press Enter"
+              className="flex-1 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/45 focus:border-cyan-300 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={sendTypedMessage}
+              className="rounded-lg bg-cyan-500/40 px-3 py-2 text-xs font-semibold text-white"
+            >
+              Send
+            </button>
+          </div>
+        )}
         {transcript.length === 0 && <p className="text-white/50">Transcript and guidance appear here as you talk.</p>}
         {transcript.map((t) => (
           <div
             key={t.id}
-            className={`rounded-xl px-3 py-2 ${t.role === 'user' ? 'ml-8 border border-cyan-500/20 bg-cyan-500/10' : 'mr-8 border border-violet-500/20 bg-violet-500/10'}`}
+            className={`max-w-[78%] rounded-lg px-2.5 py-1.5 ${
+              t.role === 'user'
+                ? 'mr-6 border border-blue-400/35 bg-blue-500/25 text-white'
+                : 'ml-6 border border-white/70 bg-white text-slate-900'
+            }`}
           >
-            <p className="text-[10px] uppercase text-white/45">{t.role === 'user' ? 'You' : 'Assistant'}</p>
-            <div className="prose prose-invert prose-sm mt-1 max-w-none text-white/90">
-              <MarkdownContent>{t.text}</MarkdownContent>
+            <p className={`text-[10px] uppercase ${t.role === 'user' ? 'text-blue-100/85' : 'text-slate-500'}`}>
+              {t.role === 'user' ? 'You' : 'Assistant'}
+            </p>
+            <div
+              className={`prose prose-sm mt-1 max-w-none ${
+                t.role === 'user' ? 'prose-invert text-white/95' : 'text-slate-800'
+              }`}
+            >
+              <MarkdownContent
+                className={
+                  t.role === 'assistant'
+                    ? '[&_a]:text-blue-700 [&_code]:text-slate-900 [&_h1]:text-slate-900 [&_h2]:text-slate-900 [&_h3]:text-slate-900 [&_p]:text-slate-900 [&_strong]:text-slate-900'
+                    : ''
+                }
+              >
+                {t.text}
+              </MarkdownContent>
             </div>
           </div>
         ))}

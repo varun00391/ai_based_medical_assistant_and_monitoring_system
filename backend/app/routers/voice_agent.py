@@ -161,7 +161,7 @@ async def voice_agent_websocket(websocket: WebSocket, token: str | None = None) 
     except ImportError:
         from deepgram import DeepgramClient as DeepgramRealtimeClient
     from deepgram import AgentWebSocketEvents
-    from deepgram.clients.agent.v1.websocket.options import SettingsOptions
+    from deepgram.clients.agent.v1.websocket.options import InjectUserMessageOptions, SettingsOptions
 
     client = DeepgramRealtimeClient(api_key=settings.deepgram_api_key)
     settings_dict = _build_agent_settings()
@@ -235,6 +235,17 @@ async def voice_agent_websocket(websocket: WebSocket, token: str | None = None) 
                 b = message.get("bytes")
                 if b is not None:
                     await dg.send(b)
+                    continue
+                t = message.get("text")
+                if t:
+                    try:
+                        payload = json.loads(t)
+                    except json.JSONDecodeError:
+                        payload = {"type": "InjectUserMessage", "content": t}
+                    if payload.get("type") == "InjectUserMessage":
+                        content = str(payload.get("content") or "").strip()
+                        if content:
+                            await dg.inject_user_message(InjectUserMessageOptions(content=content))
         except WebSocketDisconnect:
             pass
         finally:

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import require_roles
-from app.models import ChatMessage, ChatSession, User, UserRole
+from app.models import ChatMessage, ChatSession, MedicalReport, User, UserRole
 from app.schemas import ChatMessageIn, ChatMessageOut, ChatReply, ChatSessionOut
 from app.agents.orchestrator import run_chat_with_agents
 from app.services.document_extract import extract_report_text
@@ -47,6 +47,25 @@ def get_messages(
     if not s or s.patient_id != user.id:
         raise HTTPException(status_code=404, detail="Session not found")
     return db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at).all()
+
+
+@router.delete("/sessions/{session_id}")
+def delete_session(
+    session_id: int,
+    user: Annotated[User, Depends(require_roles(UserRole.patient))],
+    db: Session = Depends(get_db),
+):
+    s = db.get(ChatSession, session_id)
+    if not s or s.patient_id != user.id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    # Keep generated reports, but detach them from the session being deleted.
+    db.query(MedicalReport).filter(MedicalReport.chat_session_id == session_id).update(
+        {MedicalReport.chat_session_id: None}, synchronize_session=False
+    )
+    db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete()
+    db.delete(s)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/message", response_model=ChatReply)
