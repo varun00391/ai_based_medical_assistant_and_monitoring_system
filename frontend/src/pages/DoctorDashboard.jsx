@@ -16,7 +16,9 @@ export default function DoctorDashboard() {
   }
 
   useEffect(() => {
-    loadAppts()
+    Promise.resolve().then(() => {
+      loadAppts().catch(() => {})
+    })
   }, [])
 
   async function loadPatient(e) {

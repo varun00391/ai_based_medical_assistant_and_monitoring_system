@@ -147,7 +147,7 @@ export default function VoiceAssistantDeepgram() {
     }
   }, [transcript])
 
-  const drainPlaybackQueue = useCallback(() => {
+  const drainPlaybackQueue = useCallback(function playNext() {
     if (playbackBusyRef.current) return
     const nextUrl = playbackQueueRef.current.shift()
     if (!nextUrl) return
@@ -161,7 +161,7 @@ export default function VoiceAssistantDeepgram() {
       URL.revokeObjectURL(nextUrl)
       if (playbackAudioRef.current === a) playbackAudioRef.current = null
       playbackBusyRef.current = false
-      drainPlaybackQueue()
+      playNext()
     }
 
     a.addEventListener('ended', cleanupAndContinue, { once: true })
@@ -169,15 +169,12 @@ export default function VoiceAssistantDeepgram() {
     a.play().catch(cleanupAndContinue)
   }, [])
 
-  const enqueueAudio = useCallback(
-    (merged) => {
-      const url = playWavOrPcm(merged)
-      if (!url) return
-      playbackQueueRef.current.push(url)
-      drainPlaybackQueue()
-    },
-    [drainPlaybackQueue]
-  )
+  const enqueueAudio = useCallback((merged) => {
+    const url = playWavOrPcm(merged)
+    if (!url) return
+    playbackQueueRef.current.push(url)
+    drainPlaybackQueue()
+  }, [drainPlaybackQueue])
 
   const flushAudioBuffer = useCallback(() => {
     const parts = pcmBufferRef.current
@@ -229,14 +226,12 @@ export default function VoiceAssistantDeepgram() {
         const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 })
         const source = ctx.createMediaStreamSource(stream)
         const proc = ctx.createScriptProcessor(4096, 1, 1)
-        let sent = 0
         proc.onaudioprocess = (e) => {
           if (ws.readyState !== WebSocket.OPEN) return
           const ch = e.inputBuffer.getChannelData(0)
           const d24 = downsampleTo24k(ch)
           const pcm = floatTo16BitPCM(d24)
           ws.send(pcm.buffer)
-          sent += 1
         }
         const mute = ctx.createGain()
         mute.gain.value = 0
@@ -317,7 +312,7 @@ export default function VoiceAssistantDeepgram() {
         setErr((prev) => prev || 'Unable to reach voice assistant service. Check backend/proxy URL.')
       }
     }
-  }, [appendLine, flushAudioBuffer, flushPendingAssistant, stop, stopAudioCapture])
+  }, [appendLine, flushAudioBuffer, flushPendingAssistant, stopAudioCapture])
 
   const sendTypedMessage = useCallback(() => {
     const text = textInput.trim()

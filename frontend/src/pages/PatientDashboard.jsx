@@ -290,17 +290,31 @@ function ChatPanel() {
     if (!sessionId && data[0]) setSessionId(data[0].id)
   }
 
-  async function loadMessages(sid) {
-    const { data } = await api.get(`/chat/sessions/${sid}/messages`)
-    setMessages(data)
-  }
-
   useEffect(() => {
-    refreshSessions()
+    let cancelled = false
+    async function initSessions() {
+      const { data } = await api.get('/chat/sessions')
+      if (cancelled) return
+      setSessions(data)
+      setSessionId((prev) => prev || data[0]?.id || null)
+    }
+    initSessions().catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
-    if (sessionId) loadMessages(sessionId)
+    if (!sessionId) return undefined
+    let cancelled = false
+    async function initMessages() {
+      const { data } = await api.get(`/chat/sessions/${sessionId}/messages`)
+      if (!cancelled) setMessages(data)
+    }
+    initMessages().catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [sessionId])
 
   async function newSession() {
@@ -814,7 +828,15 @@ function ReportsPanel() {
   }
 
   useEffect(() => {
-    loadHistory()
+    let cancelled = false
+    async function initHistory() {
+      const { data } = await api.get('/labs/results')
+      if (!cancelled) setHistory(data || [])
+    }
+    initHistory().catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function uploadAndAnalyze(file) {
@@ -935,32 +957,37 @@ function AppointmentsPanel({ tab, onPickDoctor }) {
   const [doctors, setDoctors] = useState([])
   const [mine, setMine] = useState([])
 
-  async function loadSpecialties() {
-    const { data } = await api.get('/appointments/specialties')
-    setSpecialties(data || [])
-  }
-
-  async function loadDoctors(spec) {
-    const config = {}
-    if (spec) config.params = { specialty: spec }
-    const { data } = await api.get('/appointments/doctors', config)
-    setDoctors(data || [])
-  }
-
-  async function loadMine() {
-    const { data } = await api.get('/appointments/mine')
-    setMine(data || [])
-  }
-
   useEffect(() => {
     if (tab !== 'appointments') return
-    loadSpecialties()
-    loadMine()
+    let cancelled = false
+    async function initMeta() {
+      const [specRes, mineRes] = await Promise.allSettled([
+        api.get('/appointments/specialties'),
+        api.get('/appointments/mine'),
+      ])
+      if (cancelled) return
+      if (specRes.status === 'fulfilled') setSpecialties(specRes.value.data || [])
+      if (mineRes.status === 'fulfilled') setMine(mineRes.value.data || [])
+    }
+    initMeta().catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [tab])
 
   useEffect(() => {
     if (tab !== 'appointments') return
-    loadDoctors(specialtyFilter || undefined)
+    let cancelled = false
+    async function initDoctors() {
+      const config = {}
+      if (specialtyFilter) config.params = { specialty: specialtyFilter }
+      const { data } = await api.get('/appointments/doctors', config)
+      if (!cancelled) setDoctors(data || [])
+    }
+    initDoctors().catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [tab, specialtyFilter])
 
   return (
