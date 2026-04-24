@@ -5,7 +5,7 @@ RESOURCE_GROUP="my-rg"
 LOCATION="centralindia"
 ACR_NAME="varunsingh2103"
 APP_NAME="my-container-app"
-ENV_NAME="my-container-env"
+ENV_NAME="my-container-env"   #
 
 # ===== CREATE INFRA =====
 az group create --name $RESOURCE_GROUP --location $LOCATION
