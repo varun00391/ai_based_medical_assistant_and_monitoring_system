@@ -1,0 +1,78 @@
+name: Azure Deploy
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "scripts/deploy_app.sh"
+      - ".github/workflows/azure-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Build, push, and deploy Container Apps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build deployment env file
+        run: |
+          cat > .env.ci <<EOF
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          ACCESS_TOKEN_EXPIRE_MINUTES=${{ vars.ACCESS_TOKEN_EXPIRE_MINUTES }}
+          CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
+          LOG_LEVEL=${{ vars.LOG_LEVEL }}
+          UVICORN_LOG_LEVEL=${{ vars.UVICORN_LOG_LEVEL }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          ADMIN_EMAIL=${{ vars.ADMIN_EMAIL }}
+          ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+          GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL=${{ vars.GROQ_MODEL }}
+          GROQ_TEMPERATURE=${{ vars.GROQ_TEMPERATURE }}
+          GROQ_MAX_TOKENS=${{ vars.GROQ_MAX_TOKENS }}
+          GROQ_REPORT_TEMPERATURE=${{ vars.GROQ_REPORT_TEMPERATURE }}
+          REPORT_CHUNK_MAX_CHARS=${{ vars.REPORT_CHUNK_MAX_CHARS }}
+          REPORT_CHUNK_OVERLAP=${{ vars.REPORT_CHUNK_OVERLAP }}
+          ENABLE_REPORT_PEER_REVIEW=${{ vars.ENABLE_REPORT_PEER_REVIEW }}
+          PDF_OCR_MAX_PAGES=${{ vars.PDF_OCR_MAX_PAGES }}
+          PDF_OCR_ZOOM=${{ vars.PDF_OCR_ZOOM }}
+          PDF_OCR_LANG=${{ vars.PDF_OCR_LANG }}
+          PDF_OCR_PREPROCESS=${{ vars.PDF_OCR_PREPROCESS }}
+          DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
+          DEEPGRAM_MODEL=${{ vars.DEEPGRAM_MODEL }}
+          DEEPGRAM_SMART_FORMAT=${{ vars.DEEPGRAM_SMART_FORMAT }}
+          DEEPGRAM_TTS_MODEL=${{ vars.DEEPGRAM_TTS_MODEL }}
+          UPLOADS_DIR=${{ vars.UPLOADS_DIR }}
+          REPORTS_DIR=${{ vars.REPORTS_DIR }}
+          VITE_TTS_LANG=${{ vars.VITE_TTS_LANG }}
+          EOF
+
+      - name: Run deploy script
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          AZURE_CONTAINERAPPS_ENV: ${{ vars.AZURE_CONTAINERAPPS_ENV }}
+          BACKEND_IMAGE_NAME: ${{ vars.BACKEND_IMAGE_NAME }}
+          FRONTEND_IMAGE_NAME: ${{ vars.FRONTEND_IMAGE_NAME }}
+          BACKEND_CONTAINER_APP: ${{ vars.BACKEND_CONTAINER_APP }}
+          FRONTEND_CONTAINER_APP: ${{ vars.FRONTEND_CONTAINER_APP }}
+          IMAGE_TAG: ${{ github.sha }}
+          ENV_FILE: .env.ci
+        run: |
+          chmod +x scripts/deploy_app.sh
+          ./scripts/deploy_app.sh

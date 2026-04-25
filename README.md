@@ -112,3 +112,55 @@ Set frontend API URL (if needed) using `VITE_API_URL`.
 - Uploaded files and generated PDFs are stored under `data/`.
 - Docker backend uses PostgreSQL; local default can use SQLite unless overridden by `DATABASE_URL`.
 
+## Deploy To Azure (ACR + Container Apps)
+
+Deployment is split into two scripts:
+
+- `scripts/azure_infra.sh`: creates/updates Azure infra only
+- `scripts/deploy_app.sh`: builds/pushes images and deploys Container Apps only
+
+### 1) Provision infra
+
+```bash
+chmod +x scripts/azure_infra.sh
+./scripts/azure_infra.sh
+```
+
+Subscription ID is resolved in this order: `AZURE_SUBSCRIPTION_ID` in the environment, optional `AZURE_SUBSCRIPTION_ID` in `.env`, then the current Azure CLI default (`az account show --query id -o tsv`). Run `az login` and, if needed, `az account set --subscription <id-or-name>`.
+
+### 2) Deploy app
+
+```bash
+chmod +x scripts/deploy_app.sh
+./scripts/deploy_app.sh
+```
+
+`deploy_app.sh` reads values from `.env`, stores sensitive keys as Container Apps secrets, and injects non-sensitive keys as normal environment variables. You normally do not need `AZURE_SUBSCRIPTION_ID` in `.env` if your Azure CLI default subscription is correct.
+
+### GitHub Actions orchestration
+
+- `azure-infra.yml`: manual infra provisioning (`workflow_dispatch`)
+- `azure-deploy.yml`: auto deploy on push to `main/master` when backend/frontend/deploy files change
+
+Required GitHub Secrets (for OIDC + app secrets):
+
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+- `JWT_SECRET`
+- `DATABASE_URL`
+- `ADMIN_PASSWORD`
+- `GROQ_API_KEY`
+- `DEEPGRAM_API_KEY` (if voice features enabled)
+
+Required GitHub Variables (infra/app config):
+
+- `AZURE_RESOURCE_GROUP`
+- `ACR_NAME`
+- `AZURE_CONTAINERAPPS_ENV`
+- `BACKEND_IMAGE_NAME`
+- `FRONTEND_IMAGE_NAME`
+- `BACKEND_CONTAINER_APP`
+- `FRONTEND_CONTAINER_APP`
+- plus non-secret app config keys from `.env.example`
+
